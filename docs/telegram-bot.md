@@ -29,14 +29,18 @@ python frenbot.py --bot
    CLI/MCP, bot langsung menampilkan profil tanpa login ulang.
 3. Profil — pulsa, masa aktif kartu, status nomor, profil paket.
 4. Cek Kuota — sisa kuota internet, nelpon, SMS, dan paket aktif.
-5. Beli Paket — semua paket rekomendasi tampil dengan pagination (10 per
+5. Rekomendasi — analisis sisa kuota + estimasi hari tersisa, verdict perlu
+   beli atau tidak, dan 5 paket nilai terbaik (harga per GB) dari seluruh
+   katalog, masing-masing dicek eligibilitas bayarnya (online/QRIS atau
+   khusus pulsa). Tekan tombol paket untuk langsung ke detail dan beli.
+6. Beli Paket — semua paket rekomendasi tampil dengan pagination (10 per
    halaman, tombol Sebelumnya/Berikutnya), plus tombol Katalog Web untuk
    kategori kuota/5G/roaming dan Kode Manual. Pilih paket: bot menampilkan
    detail dulu (harga + diskon, masa berlaku, benefit, promo, deskripsi,
    link S&K). Tekan Beli Paket, pilih bayar Pulsa atau QRIS, konfirmasi.
    QRIS dikirim sebagai gambar QR; status pembayaran dipoll otomatis dan
    hasilnya diberitahukan.
-6. Auto-Buy — pilih interval, threshold MB, paket, lalu mulai. Bot memonitor
+7. Auto-Buy — pilih interval, threshold MB, paket, lalu mulai. Bot memonitor
    kuota di background dan membeli otomatis via pulsa saat kuota habis atau
    di bawah threshold.
 

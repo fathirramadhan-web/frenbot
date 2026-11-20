@@ -2,7 +2,7 @@
 import json
 
 from mysf import MySFExt, quota_mb
-from bot import fmt_profile, fmt_quota, fmt_offers, fmt_package_detail
+from bot import fmt_profile, fmt_quota, fmt_offers, fmt_package_detail, fmt_recommendation
 from otpwebhook import auto_relogin
 
 
@@ -19,6 +19,7 @@ def main(listener=None):
         print("5. Auto-buy (setup/status/stop)")
         print("6. Login")
         print("7. Logout")
+        print("8. Rekomendasi paket (analisis kuota + nilai terbaik)")
         print("0. Keluar")
         try:
             ch = input("Pilih> ").strip()
@@ -98,6 +99,8 @@ def main(listener=None):
                 c.s = {}
                 c._save()
                 print("Logout OK.")
+            elif ch == "8":
+                print(fmt_recommendation(c.recommend()))
             elif ch == "0":
                 break
         except SystemExit as e:

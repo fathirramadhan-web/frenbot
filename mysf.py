@@ -1,10 +1,12 @@
 """Extensi client MySF: offers, beli paket (pulsa/QRIS), polling status bayar."""
 import json
+import re
 import ssl
 import time
 import urllib.request
 import urllib.error
 import http.cookiejar
+from datetime import datetime
 
 from mysf_client import MySFClient, normalize_mdn, _post, INFO_SERVICE
 
@@ -113,6 +115,94 @@ class MySFExt(MySFClient):
         cache[category] = items
         self._webcat_cache = cache
         return items
+
+    def recommend(self, top=5):
+        """Rekomendasi heuristik: konteks kuota + paket nilai terbaik (harga/GB),
+        plus cek eligibilitas pembayaran online kandidat teratas. Cache 5 menit."""
+        now = time.time()
+        cache = getattr(self, "_reco_cache", None)
+        if cache and now - cache[0] < 300:
+            return cache[1]
+        items = self.offers().get("data") or []
+        ap = self.active_plan()
+        mb = quota_mb(ap)
+        sisa_gb = round(mb / 1000, 2) if mb is not None else None
+        days_left = None
+        bens = ((ap.get("result") or {}).get("data") or {}).get("benefits") or {}
+        today = datetime.now()
+        best = None
+        for p in bens.get("resultPackages") or []:
+            if not isinstance(p, dict):
+                continue
+            # hanya paket kuota, bukan masa aktif kartu
+            if str(p.get("packType")) == "1on+" or p.get("brand") == "No Package" \
+                    or "masa aktif" in str(p.get("packName", "")).lower():
+                continue
+            for k in ("packExpDate", "expDate", "expiredDate", "endDate", "validUntil"):
+                v = str(p.get(k) or "")[:10]
+                if not v:
+                    continue
+                d = None
+                for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+                    try:
+                        d = datetime.strptime(v, fmt)
+                        break
+                    except ValueError:
+                        pass
+                if d and d >= today:
+                    delta = (d - today).days
+                    if best is None or delta < best:
+                        best = delta
+        days_left = best
+        si = self.sub_info()
+        rc = ((si.get("result") or {}).get("data") or {}).get("resultCustinfo") or {}
+        pulsa = int(rc.get("remBal") or 0)
+        rows = []
+        for p in items:
+            raw = p.get("raw") or {}
+            gb = 0.0
+            for b in raw.get("benefits") or []:
+                if not isinstance(b, dict):
+                    continue
+                n = (b.get("benefitName") or "").lower()
+                v = b.get("benefitValue") or ""
+                if "internet" in n or "kuota" in n:
+                    m = re.search(r"([\d.,]+)\s*GB", v, re.I)
+                    if m:
+                        gb += float(m.group(1).replace(",", "."))
+            price = int(p.get("price") or 0)
+            if gb > 0 and price > 0:
+                rows.append({"code": p["code"], "name": p.get("name") or p["code"],
+                             "price": price, "gb": gb, "per_gb": int(price / gb),
+                             "validity": raw.get("filterValidity") or p.get("validity"),
+                             "discount": raw.get("priceDiscount") or None})
+        rows.sort(key=lambda r: r["per_gb"])
+        top_rows = rows[:top]
+        if top_rows:
+            try:
+                op, hello = self._web_hello()
+                for r in top_rows:
+                    opts = self._web_post(op, "/payment/v2/api/payment-options",
+                                          {"type": "buypackage", "product_code": r["code"],
+                                           "total_payment": r["price"], "session_id": hello,
+                                           "partner": "MYWEB"},
+                                          {"session-type": "hello", "language": "id"})
+                    r["online_pay"] = opts.get("status") == 0
+            except Exception:
+                for r in top_rows:
+                    r.setdefault("online_pay", None)
+        if sisa_gb is None:
+            verdict = "Sisa kuota tidak terbaca - cek menu Cek Kuota dulu."
+        elif sisa_gb < 5 or (days_left is not None and days_left <= 3):
+            verdict = "Kuota menipis - sebaiknya segera beli paket."
+        elif sisa_gb >= 20 and (days_left is None or days_left >= 14):
+            verdict = "Kuota masih longgar - belum perlu beli sekarang."
+        else:
+            verdict = "Kuota cukup untuk beberapa hari - pertimbangkan beli sebelum habis."
+        out = {"sisa_gb": sisa_gb, "days_left": days_left, "pulsa": pulsa,
+               "verdict": verdict, "top": top_rows, "total_scanned": len(rows)}
+        self._reco_cache = (now, out)
+        return out
 
     def package_details(self, code):
         """Detail paket terstruktur dari katalog (benefit, masa berlaku, promo, desc, S&K)."""

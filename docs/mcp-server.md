@@ -40,6 +40,9 @@ Account & Quota:
 
 Packages & Purchasing:
 - get_recommended_offers() — daftar paket + kode + harga.
+- get_recommendations() — analisis heuristik: sisa kuota, estimasi hari
+  tersisa, verdict perlu beli/tidak, top 5 paket harga per GB terbaik
+  dengan eligibilitas pembayaran (online/QRIS vs pulsa).
 - get_web_catalog(category) — katalog web per kategori: kuota, 5g, roaming
   (paket di luar rekomendasi personal, termasuk postpaid).
 - get_package_details(code) — detail paket (harga, benefit, masa berlaku).

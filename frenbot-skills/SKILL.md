@@ -48,6 +48,7 @@ optional segno for QRIS images.
 
 ### Packages & Purchasing
 - get_recommended_offers — list packages available for the number, with codes and prices.
+- get_recommendations — heuristic analysis: remaining quota, estimated days left, buy/not-buy verdict, top-5 best price-per-GB packages with payment eligibility (online/QRIS vs pulsa-only).
 - get_web_catalog — web catalog by category (kuota, 5g, roaming); packages outside the personalized list, incl. postpaid.
 - get_package_details — details of a specific package by code (price, benefits, validity).
 - buy_package — purchase a package by code with payment_method "pulsa" or "qris".

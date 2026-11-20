@@ -16,6 +16,7 @@ python frenbot.py --cli
 5. Auto-buy (setup/status/stop)
 6. Login
 7. Logout
+8. Rekomendasi paket (analisis kuota + nilai terbaik)
 0. Keluar
 ```
 

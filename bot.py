@@ -108,8 +108,42 @@ def kb_login():
 
 def kb_profile():
     return [[btn("Cek Kuota", "check_quota"), btn("Beli Paket", "buy")],
-            [btn("Auto-Buy", "auto_buy"), btn("Refresh", "refresh")],
-            [btn("Logout", "logout")]]
+            [btn("Rekomendasi", "reco"), btn("Auto-Buy", "auto_buy")],
+            [btn("Refresh", "refresh"), btn("Logout", "logout")]]
+
+
+def fmt_recommendation(rec):
+    def rp(n):
+        return f"Rp{int(n):,}".replace(",", ".")
+    lines = ["Rekomendasi paket", ""]
+    if rec.get("sisa_gb") is not None:
+        lines.append(f"Sisa kuota: {rec['sisa_gb']} GB")
+    if rec.get("days_left") is not None:
+        lines.append(f"Perkiraan hari tersisa: {rec['days_left']}")
+    lines.append("Pulsa: " + rp(rec.get("pulsa") or 0))
+    lines.append("")
+    lines.append(rec.get("verdict") or "")
+    top = rec.get("top") or []
+    if top:
+        lines.append("")
+        lines.append(f"Nilai terbaik dari {rec.get('total_scanned', 0)} paket (harga per GB):")
+        for i, r in enumerate(top, 1):
+            pay = "online/QRIS" if r.get("online_pay") else ("pulsa" if r.get("online_pay") is False else "?")
+            disc = f", diskon {r['discount']}" if r.get("discount") else ""
+            lines.append(f"{i}. {r['name']} - {rp(r['price'])} ({rp(r['per_gb'])}/GB, {r.get('validity') or '?'}{disc}) [{pay}]")
+        lines.append("")
+        lines.append("[online/QRIS] = bisa QRIS/e-wallet; [pulsa] = khusus pulsa.")
+        lines.append("Tekan tombol paket untuk lihat detail dan beli.")
+    return "\n".join(lines)
+
+
+def kb_reco(rec):
+    kb = []
+    for r in (rec.get("top") or [])[:5]:
+        label = r["name"][:32] + f" (Rp{int(r['price']):,})".replace(",", ".")
+        kb.append([btn(label, "pkg_" + r["code"][:48])])
+    kb.append([btn("Kembali", "back_profile")])
+    return kb
 
 
 def kb_back(target="back_profile"):
@@ -363,6 +397,15 @@ class Bot:
                 return edit("Belum login.", kb_login())
             edit("Mengambil data kuota...")
             edit(fmt_quota(self.c) + "\n\nPilih aksi:", kb_profile())
+        elif data == "reco":
+            if not self.logged_in():
+                return edit("Belum login.", kb_login())
+            edit("Menganalisis kuota dan katalog...")
+            try:
+                rec = self.c.recommend()
+            except Exception as e:
+                return edit("Gagal membuat rekomendasi: " + str(e), kb_profile())
+            edit(fmt_recommendation(rec), kb_reco(rec))
         elif data == "buy" or data.startswith("buypage_"):
             if not self.logged_in():
                 return edit("Belum login.", kb_login())

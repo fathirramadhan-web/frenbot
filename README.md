@@ -8,6 +8,7 @@ Python-based tool for managing Smartfren accounts via Telegram Bot, Terminal CLI
 - Profile, balance (pulsa), masa aktif, and quota checking
 - Browse recommended packages per nomor (semua paket, pagination) + katalog web per kategori (kuota, 5G, roaming)
 - Detail paket sebelum beli (benefit, masa berlaku, harga diskon, promo, S&K)
+- Rekomendasi cerdas: analisis sisa kuota + estimasi hari tersisa, verdict beli/tidak, dan paket nilai terbaik (harga per GB) dengan cek eligibilitas QRIS/pulsa
 - Purchase packages (Pulsa / QRIS)
 - Auto-buy monitor (auto-purchase when quota is depleted or below a custom MB threshold)
 - Auto re-login via refresh token and OTP webhook (session renewal without manual intervention)
@@ -95,8 +96,9 @@ Jalankan python frenbot.py --mcp. Contoh konfigurasi mcporter / Claude Desktop
 ```
 
 Tools: login, submit_otp, logout, get_profile, get_quota,
-get_recommended_offers, get_web_catalog, get_package_details, buy_package,
-start_auto_buy, auto_buy_status, stop_auto_buy.
+get_recommended_offers, get_recommendations, get_web_catalog,
+get_package_details, buy_package, start_auto_buy, auto_buy_status,
+stop_auto_buy.
 
 Panduan agent: coba get_profile dulu (sesi biasanya sudah tersimpan); kalau
 perlu login, panggil login lalu STOP dan minta OTP ke user, baru submit_otp.
