@@ -272,24 +272,44 @@ class MySFExt(MySFClient):
                     "_source": "purchase-service", "raw": res}
         return {"error": msg or "gagal beli via pulsa", "raw": r}
 
-    def payment_status(self, reference):
+    def _set_cookie(self, op, name, val):
+        for h in op.handlers:
+            if isinstance(h, urllib.request.HTTPCookieProcessor):
+                h.cookiejar.set_cookie(http.cookiejar.Cookie(
+                    0, name, val, None, False, "www.smartfren.com",
+                    True, False, "/", True, True, None, False, None, None, {}))
+
+    def payment_status(self, reference, type_="buypackage"):
         op, hello = self._web_hello()
-        return self._web_post(op, "/payment/v2/api/payment-status", {"reference": reference},
+        self._set_cookie(op, "session_id", hello)
+        return self._web_post(op, "/payment/v2/api/payment-status",
+                              {"type": type_, "reference": reference, "partner": "MYWEB"},
                               {"session-type": "hello", "language": "id"})
 
     def ppob_status(self, reference):
         op, hello = self._web_hello()
-        return self._web_post(op, "/payment/v2/api/ucms-ppob-status", {"reference": reference},
+        g = self._web_post(op, "/payment/v2/api/sfpas-guest", {}, {"language": "id"})
+        gtok = g.get("token") or hello
+        self._set_cookie(op, "session_id", gtok)
+        return self._web_post(op, "/payment/v2/api/ucms-ppob-status",
+                              {"reference": reference},
                               {"session-type": "hello", "language": "id"})
 
-    def poll_payment(self, reference, tries=60, delay=5):
+    def poll_payment(self, reference, tries=120, delay=5, type_="buypackage"):
         for _ in range(tries):
             r = self.ppob_status(reference)
-            ps = r.get("paymentStatus")
-            fs = r.get("fulfillmentStatus")
-            if ps in (2, "2", "paid", "SUCCESS") or fs in (2, "2", "SUCCESS", "FULFILLED"):
+            d = r.get("data") if isinstance(r.get("data"), dict) else {}
+            ps = r.get("paymentStatus", d.get("paymentStatus"))
+            fs = r.get("fulfillmentStatus", d.get("fulfillmentStatus"))
+            if ps in (2, "2", "paid", "SUCCESS", "PAID") or fs in (2, "2", "SUCCESS", "FULFILLED"):
                 return {"status": "paid", "raw": r}
-            if ps in (3, "3", "expired", "EXPIRED", "FAILED", "CANCELLED"):
+            if ps in (3, "3", "expired", "EXPIRED", "FAILED", "CANCELLED") or fs in (3, "3", "FAILED", "EXPIRED", "CANCELLED"):
                 return {"status": "expired", "raw": r}
+            r2 = self.payment_status(reference, type_)
+            err = r2.get("error") or {}
+            if err.get("status") == 83 or "closed" in str(err.get("message", "")).lower():
+                return {"status": "expired", "raw": r2}
+            if r2.get("status") in (2, "2") and not r2.get("error"):
+                return {"status": "paid", "raw": r2}
             time.sleep(delay)
         return {"status": "timeout"}

@@ -4,9 +4,11 @@ auto-buy monitor, auto re-login via webhook OTP. Teks polos tanpa emoji."""
 import io
 import json
 import os
+import ssl
 import threading
 import time
 import traceback
+import urllib.request
 
 from tg import Tg, btn
 from mysf import MySFExt, quota_mb
@@ -553,34 +555,49 @@ class Bot:
         pays = data.get("payments") or []
         pay = pays[0] if pays else {}
         method = (pay.get("method") or p["method"]).upper()
-        if method == "QRIS" or pay.get("mimeContent", "").startswith("000201"):
-            qr = pay.get("mimeContent", "")
-            valid = qris_crc_valid(qr)
-            print(f"[frenbot] QRIS payload: len={len(qr)} head={qr[:20]} tail={qr[-12:]} crc_valid={valid}", flush=True)
-            png = qr_png(qr)
+        qr = pay.get("qrContent") or pay.get("mimeContent") or ""
+        qr_url = pay.get("qrCode") or ""
+        if method == "QRIS" or qr.startswith("000201") or (qr_url.startswith("http") and "QRIS" in method):
             cap = f"Scan QRIS untuk bayar.\nPaket: {p['name']}\nOrder: {ref}\nBuka gambar ukuran penuh bila sulit di-scan."
-            if not valid:
-                cap += "\nPeringatan: payload QRIS dari server tidak lolos cek CRC. Bila gagal scan, ulangi order atau pakai metode lain."
+            png = None
+            if qr:
+                valid = qris_crc_valid(qr)
+                print(f"[frenbot] QRIS payload: len={len(qr)} head={qr[:20]} tail={qr[-12:]} crc_valid={valid}", flush=True)
+                png = qr_png(qr)
+                if not valid:
+                    cap += "\nPeringatan: payload QRIS dari server tidak lolos cek CRC. Bila gagal scan, ulangi order atau pakai metode lain."
+            elif qr_url.startswith("http"):
+                try:
+                    req = urllib.request.Request(qr_url, headers={"User-Agent": "Mozilla/5.0"})
+                    png = urllib.request.urlopen(req, timeout=30, context=ssl.create_default_context()).read()
+                    print(f"[frenbot] QRIS image dari URL: {len(png)} bytes", flush=True)
+                except Exception as e:
+                    print(f"[frenbot] gagal unduh QR: {e}", flush=True)
             if png:
-                r = self.tg.send_document(chat, png, cap, kb_back(), filename="qris.png")
-                if not r.get("ok"):
+                rr = self.tg.send_document(chat, png, cap, kb_back(), filename="qris.png")
+                if not rr.get("ok"):
                     self.tg.send_photo(chat, png, cap, kb_back())
-            else:
+            elif qr:
                 self.tg.send(chat, cap + "\n\nQRIS (string):\n" + qr, kb_back())
+            else:
+                self.tg.send(chat, "Order dibuat tapi konten QR tidak ada di respons.\nOrder: " + ref + "\n" + json.dumps(pay, ensure_ascii=False)[:300], kb_profile())
             threading.Thread(target=self.poll_pay, args=(chat, ref), daemon=True).start()
         elif method == "MCC":
-            self.tg.send(chat, f"Order dibuat, pembayaran pulsa diproses.\nPaket: {p['name']}\nOrder: {ref}", kb_profile())
-            threading.Thread(target=self.poll_pay, args=(chat, ref), daemon=True).start()
+            if r.get("_source") == "purchase-service":
+                self.tg.send(chat, f"Pembelian via pulsa berhasil.\nPaket: {p['name']}\nHarga: Rp{int(p.get('price') or 0):,}".replace(",", "."), kb_profile())
+            else:
+                self.tg.send(chat, f"Order dibuat, pembayaran pulsa diproses.\nPaket: {p['name']}\nOrder: {ref}", kb_profile())
+                threading.Thread(target=self.poll_pay, args=(chat, ref), daemon=True).start()
         else:
             acct = pay.get("account", "")
             self.tg.send(chat, f"Order dibuat.\nPaket: {p['name']}\nMetode: {method}\nNomor/akun bayar: {acct}\nOrder: {ref}\nSelesaikan pembayaran sebelum {pay.get('expiresAt', '?')}.", kb_profile())
             threading.Thread(target=self.poll_pay, args=(chat, ref), daemon=True).start()
 
     def poll_pay(self, chat, ref):
-        if not ref or ref == "MCC":
+        if not ref or ref in ("MCC", "PULSA"):
             return
         try:
-            r = self.c.poll_payment(ref, tries=60, delay=5)
+            r = self.c.poll_payment(ref, tries=120, delay=5)
             st = r.get("status")
             if st == "paid":
                 self.tg.send(chat, f"Pembayaran berhasil.\nOrder: {ref}", kb_profile())
