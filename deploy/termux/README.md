@@ -56,6 +56,23 @@ chmod +x ~/.termux/boot/frenbot
 
 Setelah itu bot otomatis jalan setiap HP menyala.
 
+Tapi ada syarat supaya benar-benar auto:
+
+1. **Buka Termux:Boot satu kali** setelah install. Di Android 8+, sistem tidak
+   mengirim sinyal boot ke aplikasi yang belum pernah dibuka setelah reboot.
+   Tanpa ini, bot tidak jalan walau file boot sudah ada.
+2. **Matikan battery optimization** untuk Termux dan Termux:Boot:
+   Settings → Apps → Termux → Battery → Unrestricted / Don't optimize.
+3. **Izinkan autostart** (HP Xiaomi/Oppo/Vivo/Realme/Samsung):
+   Settings → Apps → Termux → Auto-start → ON.
+   HP OEM sering memblokir aplikasi jalan sendiri setelah reboot tanpa ini.
+4. Sinyal boot hanya dikirim saat **reboot**, bukan saat HP benar-benar mati lalu
+   dinyalakan ulang dari keadaan mati total — tapi untuk kasus itu tetap sama:
+   Termux:Boot dipanggil saat sistem selesai boot.
+
+Setelah reboot, cek dengan `tail -f ~/frenbot/bot.log`. Kalau tidak ada log
+baru, buka Termux:Boot sekali lalu jalankan `./frenbot/run.sh`.
+
 ## Catatan sesi
 
 `mysf_session.json` berisi token refresh 30 hari. Setelah lewat 30 hari, kirim

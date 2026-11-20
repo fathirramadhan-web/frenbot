@@ -279,6 +279,23 @@ def qr_png(data):
         return None
 
 
+def pad_quiet_zone(png, ratio=0.08):
+    """Tambah margin putih di sekeliling QR. Gambar dari Midtrans sering tanpa
+    quiet zone 4 modul, sehingga sebagian scanner gagal. ponytail: pakai PIL bila
+    ada; tanpa PIL kirim apa adanya."""
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(png)).convert("RGB")
+        m = max(8, int(max(im.size) * ratio))
+        out = Image.new("RGB", (im.size[0] + m * 2, im.size[1] + m * 2), "white")
+        out.paste(im, (m, m))
+        buf = io.BytesIO()
+        out.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception:
+        return png
+
+
 def qris_crc_valid(payload):
     """QRIS EMVCo: CRC16 CCITT-FALSE atas payload sampai termasuk '6304'."""
     if not payload or len(payload) < 8:
@@ -669,7 +686,11 @@ class Bot:
         qr = pay.get("qrContent") or pay.get("mimeContent") or ""
         qr_url = pay.get("qrCode") or ""
         if method == "QRIS" or qr.startswith("000201") or (qr_url.startswith("http") and "QRIS" in method):
-            cap = f"Scan QRIS untuk bayar.\nPaket: {p['name']}\nOrder: {ref}\nBuka gambar ukuran penuh bila sulit di-scan."
+            cap = (f"Scan QRIS untuk bayar.\n"
+                   f"Paket: {p['name']}\n"
+                   f"Harga: Rp{int(p.get('price') or 0):,}".replace(",", ".") + "\n"
+                   f"Order: {ref}\n"
+                   f"Berlaku ~10 menit. Buka gambar ukuran penuh bila sulit di-scan.")
             png = None
             if qr:
                 valid = qris_crc_valid(qr)
@@ -685,9 +706,10 @@ class Bot:
                 except Exception as e:
                     print(f"[frenbot] gagal unduh QR: {e}", flush=True)
             if png:
-                rr = self.tg.send_document(chat, png, cap, kb_back(), filename="qris.png")
+                png = pad_quiet_zone(png)
+                rr = self.tg.send_photo(chat, png, cap, kb_back(), filename="qris.png")
                 if not rr.get("ok"):
-                    self.tg.send_photo(chat, png, cap, kb_back())
+                    self.tg.send_document(chat, png, cap, kb_back(), filename="qris.png")
             elif qr:
                 self.tg.send(chat, cap + "\n\nQRIS (string):\n" + qr, kb_back())
             else:
