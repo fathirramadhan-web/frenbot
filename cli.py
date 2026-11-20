@@ -2,7 +2,7 @@
 import json
 
 from mysf import MySFExt, quota_mb
-from bot import fmt_profile, fmt_quota, fmt_offers
+from bot import fmt_profile, fmt_quota, fmt_offers, fmt_package_detail
 from otpwebhook import auto_relogin
 
 
@@ -37,17 +37,17 @@ def main(listener=None):
                     print("Tidak ada paket.")
             elif ch == "4":
                 code = input("Kode paket> ").strip()
-                pkg = c.find_package(code)
-                if not pkg:
+                d = c.package_details(code)
+                if not d:
                     print("Paket tidak ditemukan.")
                     continue
-                print(json.dumps(pkg, ensure_ascii=False, indent=1)[:800])
+                print(fmt_package_detail(d))
                 m = input("Bayar (pulsa/qris)> ").strip().lower()
                 method = "MCC" if m == "pulsa" else "QRIS"
                 ok = input(f"Konfirmasi beli {code} via {m}? (y/n)> ").strip().lower()
                 if ok != "y":
                     continue
-                r = c.buy_package(code, method, name=pkg.get("name"), price=pkg.get("price"))
+                r = c.buy_package(code, method, name=d.get("name"), price=d.get("price"))
                 print(json.dumps(r, ensure_ascii=False, indent=1)[:1500])
             elif ch == "5":
                 if auto["active"]:

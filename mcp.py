@@ -63,8 +63,8 @@ class McpServer:
             items = fmt_offers(c.offers())
             return json.dumps(items, ensure_ascii=False, indent=1) if items else "Tidak ada paket tersedia."
         if name == "get_package_details":
-            p = c.find_package(args["code"])
-            return json.dumps(p, ensure_ascii=False, indent=1) if p else "Paket tidak ditemukan: " + args["code"]
+            d = c.package_details(args["code"])
+            return json.dumps(d, ensure_ascii=False, indent=1) if d else "Paket tidak ditemukan: " + args["code"]
         if name == "buy_package":
             method = "MCC" if args["payment_method"] == "pulsa" else "QRIS"
             r = c.buy_package(args["code"], method)

@@ -7,6 +7,7 @@ Python-based tool for managing Smartfren accounts via Telegram Bot, Terminal CLI
 - SMS OTP login with session caching (session 24 jam, refresh token 30 hari)
 - Profile, balance (pulsa), masa aktif, and quota checking
 - Browse recommended packages per nomor
+- Detail paket sebelum beli (benefit, masa berlaku, harga diskon, promo, S&K)
 - Purchase packages (Pulsa / QRIS)
 - Auto-buy monitor (auto-purchase when quota is depleted or below a custom MB threshold)
 - Auto re-login via refresh token and OTP webhook (session renewal without manual intervention)

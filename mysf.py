@@ -90,6 +90,27 @@ class MySFExt(MySFClient):
                 pass
         return {"source": "web-catalog", "data": out}
 
+    def package_details(self, code):
+        """Detail paket terstruktur dari katalog (benefit, masa berlaku, promo, desc, S&K)."""
+        p = self.find_package(code)
+        if not p:
+            return None
+        raw = p.get("raw") or {}
+        bens = raw.get("benefits") or p.get("benefits") or []
+        benefits = [{"name": b.get("benefitName") or b.get("name"),
+                     "value": b.get("benefitValue") or b.get("value")}
+                    for b in bens if isinstance(b, dict)]
+        tnc = [t.get("url") for t in (raw.get("tnc") or []) if isinstance(t, dict) and t.get("url")]
+        return {"code": p["code"], "name": p.get("name"),
+                "price": p.get("price"), "base_price": raw.get("basePrice"),
+                "discount": raw.get("priceDiscount") or None,
+                "validity": raw.get("filterValidity") or p.get("validity"),
+                "brand": p.get("brand"), "category": p.get("category"),
+                "promo": raw.get("promoTag") or None,
+                "benefits": benefits,
+                "description": (raw.get("desc") or "").strip() or None,
+                "tnc": tnc}
+
     def _web_hello(self):
         cj = http.cookiejar.CookieJar()
         op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj),

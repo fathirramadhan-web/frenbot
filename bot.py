@@ -116,7 +116,42 @@ def kb_back(target="back_profile"):
 
 def kb_payment(code):
     return [[btn("Bayar Pulsa", "pay_mcc_" + code)], [btn("Bayar QRIS", "pay_qris_" + code)],
-            [btn("Kembali", "buy")]]
+            [btn("Kembali", "pkg_" + code)]]
+
+
+def kb_detail(code):
+    return [[btn("Beli Paket", "buyopt_" + code)], [btn("Kembali", "buy")]]
+
+
+def fmt_package_detail(d):
+    lines = [d.get("name") or d.get("code"), "Kode: " + str(d.get("code"))]
+    price = int(d.get("price") or 0)
+    base = int(d.get("base_price") or 0)
+    if base > price:
+        disc = (" diskon " + str(d.get("discount"))) if d.get("discount") else ""
+        lines.append(f"Harga: Rp{price:,} (normal Rp{base:,}{disc})".replace(",", "."))
+    else:
+        lines.append(f"Harga: Rp{price:,}".replace(",", "."))
+    if d.get("validity"):
+        lines.append("Masa berlaku: " + str(d["validity"]))
+    if d.get("promo"):
+        lines.append("Promo: " + str(d["promo"]))
+    bens = d.get("benefits") or []
+    if bens:
+        lines.append("")
+        lines.append("Benefit:")
+        for b in bens:
+            if b.get("name") and b.get("value"):
+                lines.append(f"- {b['name']}: {b['value']}")
+    desc = (d.get("description") or "").strip()
+    if desc:
+        lines.append("")
+        lines.append(desc[:500])
+    tnc = d.get("tnc") or []
+    if tnc:
+        lines.append("")
+        lines.append("S&K: " + tnc[0])
+    return "\n".join(lines)
 
 
 def kb_confirm():
@@ -313,7 +348,9 @@ class Bot:
             edit("Kirim kode paket yang ingin dibeli.\nContoh: K100GB30DCLM_QB")
         elif data.startswith("pkg_"):
             code = data[4:]
-            self.show_payment(chat, msg, code)
+            self.show_detail(chat, msg, code)
+        elif data.startswith("buyopt_"):
+            self.show_payment(chat, msg, data[len("buyopt_"):])
         elif data.startswith("pay_mcc_") or data.startswith("pay_qris_"):
             if data.startswith("pay_mcc_"):
                 method, code = "MCC", data[len("pay_mcc_"):]
@@ -377,7 +414,7 @@ class Bot:
                 self.tg.send(chat, "OTP ditolak: " + json.dumps(r, ensure_ascii=False)[:300], kb_login())
         elif aw == "code":
             self.st("await", None)
-            self.show_payment(chat, None, text)
+            self.show_detail(chat, None, text)
         elif aw == "auto_int":
             if not text.isdigit() or int(text) <= 0:
                 return self.tg.send(chat, "Masukkan angka menit yang valid. Contoh: 30")
@@ -399,9 +436,20 @@ class Bot:
             self.on_text(chat, text)
 
     # ---------- beli ----------
+    def show_detail(self, chat, msg, code):
+        send = (lambda t, kb=None: self.tg.edit(chat, msg, t, kb)) if msg else (lambda t, kb=None: self.tg.send(chat, t, kb))
+        d = self.c.package_details(code)
+        if not d:
+            return send("Paket tidak ditemukan: " + code, kb_back("buy"))
+        send(fmt_package_detail(d), kb_detail(code))
+
     def show_payment(self, chat, msg, code):
         send = (lambda t, kb=None: self.tg.edit(chat, msg, t, kb)) if msg else (lambda t, kb=None: self.tg.send(chat, t, kb))
-        send("Paket: " + code + "\n\nPembayaran via:", kb_payment(code))
+        pkg = self.c.find_package(code)
+        head = "Paket: " + code
+        if pkg:
+            head = (pkg.get("name") or code) + "\nKode: " + code + f"\nHarga: Rp{int(pkg.get('price') or 0):,}".replace(",", ".")
+        send(head + "\n\nPembayaran via:", kb_payment(code))
 
     def prepare_buy(self, chat, msg, code, method):
         edit = lambda t, kb=None: self.tg.edit(chat, msg, t, kb)
