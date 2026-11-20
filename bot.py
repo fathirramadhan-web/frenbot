@@ -411,6 +411,14 @@ class Bot:
             return edit("Paket tidak ditemukan: " + code, kb_back("buy"))
         price = int(pkg.get("price") or 0)
         name = pkg.get("name") or code
+        if method == "QRIS":
+            op, hello = self.c._web_hello()
+            opts = self.c._web_post(op, "/payment/v2/api/payment-options",
+                                    {"type": "buypackage", "product_code": code, "total_payment": price,
+                                     "session_id": hello, "partner": "MYWEB"},
+                                    {"session-type": "hello", "language": "id"})
+            if opts.get("status") != 0:
+                return edit("Paket ini tidak mendukung QRIS (kemungkinan khusus pulsa). Pilih paket lain.", kb_back("buy"))
         self.st("pending", {"code": code, "method": method, "name": name, "price": price})
         text = f"Paket: {name}\nKode: {code}\nHarga: Rp{price:,}".replace(",", ".")
         if method == "MCC":

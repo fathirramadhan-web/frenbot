@@ -10,6 +10,7 @@ from mysf_client import MySFClient, normalize_mdn, _post, INFO_SERVICE
 
 WEB = "https://www.smartfren.com"
 PAY = WEB + "/payment/v2/api"
+PURCHASE_SERVICE = "https://custinfo.smartfren.com/purchase-service/api"
 DEVICE = ["android", "Xiaomi", "2312DRA50G", "14", "mySF", "7.58.0", "", 1080, "id", "", ""]
 
 
@@ -171,6 +172,11 @@ class MySFExt(MySFClient):
                     chosen = o
                     fee = o.get("serviceFee", 0) or 0
                     break
+        if opts.get("status") != 0:
+            # paket ini tidak punya metode online (mis. paket khusus pulsa)
+            if method.upper() == "MCC":
+                return self.buy_by_balance(code, price)
+            return {"error": "Paket ini tidak mendukung pembayaran online (QRIS/e-wallet/VA), kemungkinan khusus pulsa. Pilih paket lain atau isi pulsa dulu.", "options": opts}
         if chosen is None and method.upper() != "MCC":
             return {"error": f"metode {method} tidak tersedia", "options": opts}
         # 2. order
@@ -193,6 +199,25 @@ class MySFExt(MySFClient):
         r = self._web_post(op, "/payment/v2/api/payment-order", body,
                            {"session-type": "hello", "X-Is-Mobile": "0", "language": "id"})
         return r
+
+    def buy_by_balance(self, code, price):
+        """Paket khusus pulsa: beli langsung via purchase-service (jalur app).
+        Memotong pulsa; gagal bila saldo kurang."""
+        body = {"id": str(int(time.time() * 1000)), "jsonrpc": "2.0", "method": "buyPackageByBalance",
+                "params": [self.s["session_id"], "", "id", "", code, int(price), ""]}
+        r = _post(PURCHASE_SERVICE + "/buy-package-by-balance?buyPackageByBalance", body,
+                  {"Authorization": "Session " + self.s["session_id"], "Accept-Language": "id"})
+        res = r.get("result") or {}
+        data = res.get("data")
+        msg = res.get("msg") or ""
+        # catatan: status "0" bisa berarti gagal (msg berisi alasan); sukses bila data objek / msg sukses
+        ok = str(res.get("status")) == "0" and (
+            isinstance(data, dict) or "success" in msg.lower() or "berhasil" in msg.lower())
+        if ok:
+            ref = (data.get("reference") or data.get("transactionId") or "PULSA") if isinstance(data, dict) else "PULSA"
+            return {"status": 1, "data": {"reference": ref, "payments": [{"method": "MCC"}]},
+                    "_source": "purchase-service", "raw": res}
+        return {"error": msg or "gagal beli via pulsa", "raw": r}
 
     def payment_status(self, reference):
         op, hello = self._web_hello()
