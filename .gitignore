@@ -1,0 +1,14 @@
+# kredensial & sesi - JANGAN commit
+.env
+.env.*
+!.env.example
+mysf_session.json
+secret_map.json
+botstate.json
+
+# runtime
+*.log
+__pycache__/
+*.pyc
+health.txt
+cli_test.log
