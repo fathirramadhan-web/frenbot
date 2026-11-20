@@ -119,6 +119,10 @@ class Tg:
     def delete(self, chat_id, msg_id):
         return self.call("deleteMessage", chat_id=chat_id, message_id=msg_id)
 
+    def set_my_commands(self, commands):
+        return self.call("setMyCommands",
+                         commands=[{"command": c, "description": d} for c, d in commands])
+
 
 def btn(text, data):
     return {"text": text, "callback_data": data}

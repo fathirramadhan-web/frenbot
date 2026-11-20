@@ -46,9 +46,21 @@ python frenbot.py --bot
 
 ## Bot Commands
 
-- /start : show main menu (or profile if session active)
+Menu command terdaftar di Telegram (muncul saat mengetik / di chat):
 
-All other interactions are through inline keyboard buttons. Bot hanya
+- /start : menu utama (atau profil bila sesi aktif)
+- /profil : pulsa, masa aktif, status nomor
+- /kuota : sisa kuota internet, nelpon, SMS + paket aktif
+- /paket : katalog paket lengkap + beli
+- /rekomendasi : analisis kuota + paket nilai terbaik
+- /beli KODE : beli cepat by kode paket (tanpa argumen: diminta kode)
+- /autobuy : setup / status / stop auto-buy
+- /refresh : muat ulang profil
+- /login : login via OTP SMS
+- /logout : hapus sesi
+- /bantuan : daftar command
+
+Semua aksi juga tersedia lewat tombol inline keyboard. Bot hanya
 merespons ADMIN_ID; pesan dari user lain diabaikan.
 
 ## Auto Re-login

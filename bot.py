@@ -106,6 +106,21 @@ def kb_login():
     return [[btn("Login", "login")]]
 
 
+COMMANDS = [
+    ("start", "Menu utama / profil"),
+    ("profil", "Pulsa, masa aktif, status nomor"),
+    ("kuota", "Sisa kuota internet, nelpon, SMS"),
+    ("paket", "Katalog paket + beli"),
+    ("rekomendasi", "Analisis kuota + paket nilai terbaik"),
+    ("beli", "Beli cepat: /beli KODE_PAKET"),
+    ("autobuy", "Setup / status / stop auto-buy"),
+    ("refresh", "Muat ulang profil"),
+    ("login", "Login via OTP SMS"),
+    ("logout", "Hapus sesi tersimpan"),
+    ("bantuan", "Daftar command"),
+]
+
+
 def kb_profile():
     return [[btn("Cek Kuota", "check_quota"), btn("Beli Paket", "buy")],
             [btn("Rekomendasi", "reco"), btn("Auto-Buy", "auto_buy")],
@@ -321,6 +336,8 @@ class Bot:
     # ---------- run ----------
     def run(self):
         print("[frenbot] polling mulai, admin:", self.admin, flush=True)
+        rc = self.tg.set_my_commands(COMMANDS)
+        print("[frenbot] setMyCommands:", rc.get("ok"), flush=True)
         if self.st("auto_active") and self.logged_in():
             self.start_auto(resume=True)
         # sapa admin saat startup supaya langsung terlihat bot hidup
@@ -367,10 +384,11 @@ class Bot:
             text = (m.get("text") or "").strip()
             if not text:
                 return
-            if text.startswith("/start"):
-                self.on_start(m["chat"]["id"])
-            elif text.startswith("/"):
-                return
+            if text.startswith("/"):
+                parts = text.split(maxsplit=1)
+                cmd = parts[0][1:].split("@")[0].lower()
+                arg = parts[1].strip() if len(parts) > 1 else ""
+                self.on_command(cmd, arg, m["chat"]["id"])
             else:
                 self.on_text(m["chat"]["id"], text)
 
@@ -382,6 +400,56 @@ class Bot:
             self.tg.send(chat, "FrenBot - Smartfren via Telegram.\n\n"
                                "Login otomatis, cek profil dan kuota, beli paket, auto-buy.\n\n"
                                "Tekan Login untuk mulai.", kb_login())
+
+    def on_command(self, cmd, arg, chat):
+        send = lambda t, kb=None: self.tg.send(chat, t, kb)
+        if cmd == "start":
+            return self.on_start(chat)
+        if cmd in ("bantuan", "help"):
+            txt = "Daftar command:\n" + "\n".join(f"/{c} - {d}" for c, d in COMMANDS)
+            return send(txt, kb_profile() if self.logged_in() else kb_login())
+        if cmd == "login":
+            self.st("await", "phone")
+            return send("Kirim nomor Smartfren kamu.\nContoh: 0881xxxxxxxx")
+        if cmd == "logout":
+            self.stop_auto()
+            self.c.s = {}
+            self.c._save()
+            self.state = {}
+            save_state(self.state)
+            return send("Sudah logout.", kb_login())
+        if not self.logged_in():
+            return send("Belum login. Ketik /login dulu.", kb_login())
+        if cmd in ("profil", "refresh"):
+            return send(fmt_profile(self.c) + "\n\nPilih aksi:", kb_profile())
+        if cmd == "kuota":
+            send("Mengambil data kuota...")
+            return send(fmt_quota(self.c) + "\n\nPilih aksi:", kb_profile())
+        if cmd == "paket":
+            send("Mengambil daftar paket...")
+            items = fmt_offers(self.c.offers())
+            self.st("offers", items)
+            if not items:
+                return send("Tidak ada paket tersedia untuk nomor ini.", kb_profile())
+            pages = (len(items) + 9) // 10
+            extra = [[btn("Katalog Web", "webcat"), btn("Kode Manual", "pkg_custom")]]
+            return send(f"Pilih paket ({len(items)} tersedia, hal 1/{pages}):",
+                        kb_paged(items, "pkg_", 0, nav="buypage_", extra=extra))
+        if cmd == "rekomendasi":
+            send("Menganalisis kuota dan katalog...")
+            try:
+                rec = self.c.recommend()
+            except Exception as e:
+                return send("Gagal membuat rekomendasi: " + str(e), kb_profile())
+            return send(fmt_recommendation(rec), kb_reco(rec))
+        if cmd == "autobuy":
+            return self.auto_menu(chat, None)
+        if cmd == "beli":
+            if not arg:
+                self.st("await", "code")
+                return send("Kirim kode paket yang ingin dibeli.\nContoh: UNL28D5GGMN\nAtau langsung: /beli UNL28D5GGMN")
+            return self.show_detail(chat, None, arg.split()[0])
+        return send("Command tidak dikenal. Ketik /bantuan untuk daftar.", kb_profile())
 
     def on_callback(self, data, chat, msg):
         edit = lambda t, kb=None: self.tg.edit(chat, msg, t, kb)
@@ -653,7 +721,7 @@ class Bot:
 
     # ---------- auto-buy ----------
     def auto_menu(self, chat, msg):
-        edit = lambda t, kb=None: self.tg.edit(chat, msg, t, kb)
+        edit = (lambda t, kb=None: self.tg.edit(chat, msg, t, kb)) if msg else (lambda t, kb=None: self.tg.send(chat, t, kb))
         if self.st("auto_active"):
             return edit(self.auto_status_text(), kb_auto_running())
         edit("Masukkan waktu monitor untuk cek sisa kuota:", kb_auto_interval())
