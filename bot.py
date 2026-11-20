@@ -171,6 +171,33 @@ def kb_offers(items, prefix, extra=None):
     return kb
 
 
+def kb_paged(items, prefix, page=0, per=10, extra=None, back="back_profile", nav=None):
+    kb = []
+    start = page * per
+    for p in items[start:start + per]:
+        label = p["name"][:40]
+        if p.get("price"):
+            label += f" (Rp{int(p['price']):,})".replace(",", ".")
+        kb.append([btn(label, prefix + p["code"][:48])])
+    if nav:
+        row = []
+        if page > 0:
+            row.append(btn("<< Sebelumnya", nav + str(page - 1)))
+        if start + per < len(items):
+            row.append(btn("Berikutnya >>", nav + str(page + 1)))
+        if row:
+            kb.append(row)
+    if extra:
+        kb.extend(extra)
+    kb.append([btn("Kembali", back)])
+    return kb
+
+
+def kb_categories():
+    return [[btn("Kuota", "cat_kuota"), btn("5G", "cat_5g")],
+            [btn("Roaming", "cat_roaming")], [btn("Kembali", "buy")]]
+
+
 def kb_auto_interval():
     return [[btn("20 menit", "auto_20"), btn("50 menit", "auto_50")],
             [btn("Custom", "auto_custom")], [btn("Kembali", "back_profile")]]
@@ -334,15 +361,42 @@ class Bot:
                 return edit("Belum login.", kb_login())
             edit("Mengambil data kuota...")
             edit(fmt_quota(self.c) + "\n\nPilih aksi:", kb_profile())
-        elif data == "buy":
+        elif data == "buy" or data.startswith("buypage_"):
             if not self.logged_in():
                 return edit("Belum login.", kb_login())
-            edit("Mengambil daftar paket...")
-            items = fmt_offers(self.c.offers())
-            self.st("offers", items)
+            page = int(data[len("buypage_"):]) if data.startswith("buypage_") else 0
+            if page == 0:
+                edit("Mengambil daftar paket...")
+                items = fmt_offers(self.c.offers())
+                self.st("offers", items)
+            else:
+                items = self.st("offers") or []
             if not items:
                 return edit("Tidak ada paket tersedia untuk nomor ini.", kb_back("buy"))
-            edit("Pilih paket:", kb_offers(items, "pkg_", [[btn("Kode Paket Manual", "pkg_custom")]]))
+            pages = (len(items) + 9) // 10
+            extra = [[btn("Katalog Web", "webcat"), btn("Kode Manual", "pkg_custom")]]
+            edit(f"Pilih paket ({len(items)} tersedia, hal {page + 1}/{pages}):",
+                 kb_paged(items, "pkg_", page, nav="buypage_", extra=extra))
+        elif data == "webcat":
+            edit("Katalog web (paket di luar rekomendasi personal):", kb_categories())
+        elif data in ("cat_kuota", "cat_5g", "cat_roaming"):
+            cat = data[4:]
+            edit("Mengambil katalog " + cat + "...")
+            items = self.c.web_catalog(cat)
+            self.st("webcat_items", items)
+            if not items:
+                return edit("Kategori ini kosong.", kb_categories())
+            pages = (len(items) + 9) // 10
+            edit(f"Katalog {cat} ({len(items)} paket, hal 1/{pages}):",
+                 kb_paged(items, "pkg_", 0, nav="catpage_" + cat + "_", back="webcat"))
+        elif data.startswith("catpage_"):
+            rest = data[len("catpage_"):]
+            cat, _, pg = rest.rpartition("_")
+            page = int(pg)
+            items = self.st("webcat_items") or []
+            pages = max(1, (len(items) + 9) // 10)
+            edit(f"Katalog {cat} ({len(items)} paket, hal {page + 1}/{pages}):",
+                 kb_paged(items, "pkg_", page, nav="catpage_" + cat + "_", back="webcat"))
         elif data == "pkg_custom":
             self.st("await", "code")
             edit("Kirim kode paket yang ingin dibeli.\nContoh: K100GB30DCLM_QB")

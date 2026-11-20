@@ -11,6 +11,7 @@ from mysf_client import MySFClient, normalize_mdn, _post, INFO_SERVICE
 WEB = "https://www.smartfren.com"
 PAY = WEB + "/payment/v2/api"
 PURCHASE_SERVICE = "https://custinfo.smartfren.com/purchase-service/api"
+WEB_CATEGORIES = ("kuota", "5g", "roaming")
 DEVICE = ["android", "Xiaomi", "2312DRA50G", "14", "mySF", "7.58.0", "", 1080, "id", "", ""]
 
 
@@ -68,27 +69,50 @@ class MySFExt(MySFClient):
 
     def offers(self):
         """Paket yang bisa dibeli untuk nomor ini (get-avail-package-rev),
-        fallback ke katalog package-list web."""
+        fallback ke katalog package-list web. Cache 5 menit."""
+        now = time.time()
+        cache = getattr(self, "_offers_cache", None)
+        if cache and now - cache[0] < 300:
+            return cache[1]
         r = self._rpc("get-avail-package-rev", "getAvailPackageRev",
                       "getAvailPackageRev", [self.s["mdn62"]] + DEVICE)
         res = (r.get("result") or {})
+        out = {"source": "avail-package-rev", "data": []}
         if str(res.get("status")) == "0" and res.get("data"):
             items = self._flatten_avail(res["data"])
             if items:
-                return {"source": "avail-package-rev", "data": items}
-        # fallback: katalog web (tanpa login)
-        out = []
-        for cat in ("kuota", "5g", "unlimited", "addon"):
-            try:
-                pl = self._web_package_list(cat)
-                for tab in (pl.get("result") or {}).get("data", []):
-                    for p in tab.get("products", []):
-                        out.append({"code": p.get("code"), "name": p.get("name"),
-                                    "price": p.get("price"), "validity": p.get("validity"),
-                                    "benefits": p.get("benefits"), "tab": tab.get("tab")})
-            except Exception:
-                pass
-        return {"source": "web-catalog", "data": out}
+                out["data"] = items
+        if not out["data"]:
+            flat = []
+            for cat in WEB_CATEGORIES:
+                flat.extend(self.web_catalog(cat))
+            out = {"source": "web-catalog", "data": flat}
+        self._offers_cache = (now, out)
+        return out
+
+    def web_catalog(self, category):
+        """Katalog web per kategori (kuota/5g/roaming), flatten + cache."""
+        cache = getattr(self, "_webcat_cache", {})
+        if category in cache:
+            return cache[category]
+        items = []
+        try:
+            pl = self._web_package_list(category)
+            if isinstance(pl, dict):
+                for tab in (pl.get("result") or {}).get("data", []) or []:
+                    if not isinstance(tab, dict):
+                        continue
+                    for p in tab.get("products") or []:
+                        if isinstance(p, dict) and p.get("code"):
+                            items.append({"code": p["code"], "name": p.get("name") or p["code"],
+                                          "price": p.get("price") or 0, "validity": p.get("validity"),
+                                          "brand": p.get("serviceType"), "category": category,
+                                          "tab": tab.get("tab"), "raw": p})
+        except Exception:
+            pass
+        cache[category] = items
+        self._webcat_cache = cache
+        return items
 
     def package_details(self, code):
         """Detail paket terstruktur dari katalog (benefit, masa berlaku, promo, desc, S&K)."""
@@ -100,15 +124,29 @@ class MySFExt(MySFClient):
         benefits = [{"name": b.get("benefitName") or b.get("name"),
                      "value": b.get("benefitValue") or b.get("value")}
                     for b in bens if isinstance(b, dict)]
-        tnc = [t.get("url") for t in (raw.get("tnc") or []) if isinstance(t, dict) and t.get("url")]
+        tnc = []
+        for t in (raw.get("tnc") or []):
+            if isinstance(t, dict) and t.get("url"):
+                tnc.append(t["url"])
+            elif isinstance(t, str) and t.startswith("http"):
+                tnc.append(t)
+        if not tnc and raw.get("tncUrl"):
+            tnc = [raw["tncUrl"]]
+        promo = raw.get("promoTag")
+        if not promo:
+            pt = raw.get("promoTags")
+            if isinstance(pt, list) and pt:
+                promo = ", ".join(str(x.get("name") if isinstance(x, dict) else x) for x in pt)
+            elif isinstance(pt, str) and pt:
+                promo = pt
         return {"code": p["code"], "name": p.get("name"),
                 "price": p.get("price"), "base_price": raw.get("basePrice"),
-                "discount": raw.get("priceDiscount") or None,
+                "discount": raw.get("priceDiscount") or raw.get("discount") or None,
                 "validity": raw.get("filterValidity") or p.get("validity"),
                 "brand": p.get("brand"), "category": p.get("category"),
-                "promo": raw.get("promoTag") or None,
+                "promo": promo or None,
                 "benefits": benefits,
-                "description": (raw.get("desc") or "").strip() or None,
+                "description": (raw.get("desc") or raw.get("description") or "").strip() or None,
                 "tnc": tnc}
 
     def _web_hello(self):
@@ -144,21 +182,15 @@ class MySFExt(MySFClient):
                               {"language": "id", "Authorization": "Bearer " + tok})
 
     def find_package(self, code):
-        """Cari paket by code di offers; kembalikan dict {code,name,price,...}."""
+        """Cari paket by code di offers personal + katalog web."""
         off = self.offers()
         for p in off.get("data") or []:
             if isinstance(p, dict) and p.get("code") == code:
                 return p
-        # fallback katalog web
-        for cat in ("kuota", "5g", "unlimited", "addon"):
-            try:
-                pl = self._web_package_list(cat)
-                for tab in (pl.get("result") or {}).get("data", []):
-                    for p in tab.get("products", []):
-                        if p.get("code") == code:
-                            return p
-            except Exception:
-                pass
+        for cat in WEB_CATEGORIES:
+            for p in self.web_catalog(cat):
+                if p.get("code") == code:
+                    return p
         return None
 
     # ---------- pembelian ----------

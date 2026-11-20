@@ -17,6 +17,8 @@ TOOLS = [
     {"name": "get_profile", "description": "Profil: pulsa, masa aktif, status nomor.", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "get_quota", "description": "Sisa kuota internet, nelpon, SMS + paket aktif.", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "get_recommended_offers", "description": "Daftar paket yang bisa dibeli beserta kode dan harga.", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "get_web_catalog", "description": "Katalog web per kategori (kuota, 5g, roaming) - paket di luar rekomendasi personal, termasuk postpaid dan roaming.",
+     "inputSchema": {"type": "object", "properties": {"category": {"type": "string", "enum": ["kuota", "5g", "roaming"]}}, "required": ["category"]}},
     {"name": "get_package_details", "description": "Detail paket by kode (harga, benefit, masa berlaku).",
      "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}},
     {"name": "buy_package", "description": "Beli paket. payment_method: pulsa atau qris. Konfirmasi harga ke user sebelum memanggil.",
@@ -62,6 +64,10 @@ class McpServer:
             from bot import fmt_offers
             items = fmt_offers(c.offers())
             return json.dumps(items, ensure_ascii=False, indent=1) if items else "Tidak ada paket tersedia."
+        if name == "get_web_catalog":
+            items = c.web_catalog(args["category"])
+            slim = [{k: p.get(k) for k in ("code", "name", "price", "validity", "tab")} for p in items]
+            return json.dumps(slim, ensure_ascii=False, indent=1) if slim else "Kategori kosong."
         if name == "get_package_details":
             d = c.package_details(args["code"])
             return json.dumps(d, ensure_ascii=False, indent=1) if d else "Paket tidak ditemukan: " + args["code"]

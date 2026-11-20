@@ -40,6 +40,8 @@ Account & Quota:
 
 Packages & Purchasing:
 - get_recommended_offers() — daftar paket + kode + harga.
+- get_web_catalog(category) — katalog web per kategori: kuota, 5g, roaming
+  (paket di luar rekomendasi personal, termasuk postpaid).
 - get_package_details(code) — detail paket (harga, benefit, masa berlaku).
 - buy_package(code, payment_method) — beli; payment_method: pulsa atau qris.
 
