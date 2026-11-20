@@ -9,6 +9,7 @@ Opsional auto re-login: OTP_WEBHOOK_PORT + OTP_WEBHOOK_SECRET di .env,
 arahkan SMS forwarder ke http://host:PORT/api/otp (header X-Webhook-Secret).
 """
 import argparse
+import os
 import sys
 
 import config
@@ -22,6 +23,14 @@ def main():
     ap.add_argument("--mcp", action="store_true")
     args = ap.parse_args()
     cfg = config.load()
+
+    # mode cloud: sesi Smartfren disuntik lewat env var SESSION_JSON (secret)
+    sj = os.environ.get("SESSION_JSON")
+    if sj:
+        import mysf_client
+        with open(mysf_client.SESSION_FILE, "w", encoding="utf-8") as f:
+            f.write(sj)
+        print("[frenbot] sesi dimuat dari SESSION_JSON", file=sys.stderr)
 
     listener = None
     if cfg.get("OTP_WEBHOOK_PORT"):

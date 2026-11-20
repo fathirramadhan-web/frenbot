@@ -22,4 +22,7 @@ def load():
     for k in cfg:
         if os.environ.get(k):
             cfg[k] = os.environ[k]
+    # hosting cloud (Render/HS): port HTTP dari env PORT bila OTP_WEBHOOK_PORT tidak di-set
+    if not cfg.get("OTP_WEBHOOK_PORT") and os.environ.get("PORT"):
+        cfg["OTP_WEBHOOK_PORT"] = os.environ["PORT"]
     return cfg
