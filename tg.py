@@ -83,19 +83,25 @@ class Tg:
         parts.append(file_bytes)
         parts.append((CRLF + "--" + boundary + "--" + CRLF).encode())
         body = b"".join(parts)
-        req = urllib.request.Request(self.base + "/" + method, data=body,
-                                     headers={"Content-Type": "multipart/form-data; boundary=" + boundary,
-                                              "Connection": "close"}, method="POST")
-        try:
-            r = urllib.request.urlopen(req, timeout=60, context=self.ctx)
-            return json.loads(r.read().decode())
-        except urllib.error.HTTPError as e:
+        last = {"ok": False, "error": "no attempt"}
+        for attempt in range(3):
+            req = urllib.request.Request(self.base + "/" + method, data=body,
+                                         headers={"Content-Type": "multipart/form-data; boundary=" + boundary,
+                                                  "Connection": "close"}, method="POST")
             try:
-                return json.loads(e.read().decode())
-            except ValueError:
-                return {"ok": False, "error": str(e)}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+                r = urllib.request.urlopen(req, timeout=60, context=self.ctx)
+                return json.loads(r.read().decode())
+            except urllib.error.HTTPError as e:
+                try:
+                    last = json.loads(e.read().decode())
+                except ValueError:
+                    last = {"ok": False, "error": str(e)}
+                return last
+            except Exception as e:
+                last = {"ok": False, "error": str(e)}
+                time.sleep(1 + attempt)
+        print(f"[tg] {method} gagal: {str(last)[:250]}", file=sys.stderr, flush=True)
+        return last
 
     def send_photo(self, chat_id, photo_bytes, caption="", kb=None, filename="qr.png"):
         return self._multipart("sendPhoto", chat_id, "photo", photo_bytes, filename, caption, kb)
