@@ -371,8 +371,14 @@ class Bot:
             try:
                 r = self.tg.get_updates(offset=offset, timeout=50)
                 if not r.get("ok"):
+                    err = str(r.get("error") or r.get("description") or "")
+                    # long poll kosong = timeout normal, bukan kegagalan.
+                    # Jangan tidur, langsung polling lagi supaya pesan yang masuk
+                    # di jendela berikutnya tidak tertunda.
+                    if "timed out" in err.lower():
+                        continue
                     print("[frenbot] getUpdates gagal:", r, flush=True)
-                    time.sleep(5)
+                    time.sleep(3)
                     continue
                 for u in r.get("result", []):
                     offset = u["update_id"] + 1
@@ -686,11 +692,22 @@ class Bot:
         qr = pay.get("qrContent") or pay.get("mimeContent") or ""
         qr_url = pay.get("qrCode") or ""
         if method == "QRIS" or qr.startswith("000201") or (qr_url.startswith("http") and "QRIS" in method):
+            # masa berlaku dari API: timer = sisa detik, expiresAt = waktu tutup.
+            # ponytail: fallback 5 menit (timer 299s di respons nyata).
+            ttl = "~5 menit"
+            try:
+                secs = int(pay.get("timer") or 0)
+                if secs > 0:
+                    ttl = f"~{max(1, round(secs / 60))} menit"
+            except (TypeError, ValueError):
+                pass
             cap = (f"Scan QRIS untuk bayar.\n"
                    f"Paket: {p['name']}\n"
                    f"Harga: Rp{int(p.get('price') or 0):,}".replace(",", ".") + "\n"
                    f"Order: {ref}\n"
-                   f"Berlaku ~10 menit. Buka gambar ukuran penuh bila sulit di-scan.")
+                   f"Berlaku {ttl}"
+                   + (f" (sampai {pay['expiresAt']})" if pay.get("expiresAt") else "")
+                   + ". Buka gambar ukuran penuh bila sulit di-scan.")
             png = None
             if qr:
                 valid = qris_crc_valid(qr)
