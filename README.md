@@ -127,29 +127,6 @@ Setup lengkap: docs/auto-relogin.md.
 - docs/ : panduan per mode
 - frenbot-skills/SKILL.md : skill untuk AI agent
 
-## Deploy 24 jam (PC mati) - Render gratis
-
-Bot bisa jalan terus di cloud tanpa PC menyala, gratis tanpa kartu kredit:
-
-1. Push repo ini ke akun GitHub kamu (fork atau clone).
-2. Daftar di render.com lewat login GitHub (free tier, tanpa kartu).
-3. New + → Blueprint → pilih repo frenbot; render.yaml sudah menyiapkan
-   web service Python free (512 MB, 750 jam/bulan = cukup 24/7).
-4. Isi env vars saat diminta: BOT_TOKEN, ADMIN_ID, OTP_WEBHOOK_SECRET,
-   SESSION_JSON (tempel isi mysf_session.json hasil login via CLI).
-5. Deploy. Bot otomatis mendengarkan port HTTP dari Render (env PORT);
-   endpoint /health dipakai untuk keep-alive.
-6. Anti spin-down: workflow .github/workflows/keepalive.yml meming
-   /health tiap 5 menit (GitHub Actions gratis untuk repo publik).
-   Bila URL service bukan frenbot.onrender.com, set repository variable
-   RENDER_HEALTH_URL ke URL /health yang benar.
-
-Catatan: disk free tidak persisten — sesi dimuat dari SESSION_JSON setiap
-boot dan refresh token berlaku ±30 hari; setelah itu login ulang lewat
-/login di bot. Konfigurasi auto-buy perlu di-setup ulang setelah
-restart/redeploy. Webhook OTP bisa diarahkan ke
-https://<service>.onrender.com/api/otp (header X-Webhook-Secret).
-
 ## Security Notes
 
 - .env dan mysf_session.json berisi token/kredensial aktif dan sudah di-gitignore.
