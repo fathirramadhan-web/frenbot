@@ -1,12 +1,10 @@
+<p align="center">
+  <img src="docs/screenshot-curl-demo.jpg" width="160" alt="Frenbot">
+</p>
+
 # Frenbot
 
 Python-based tool for managing Smartfren accounts via Telegram Bot, Terminal CLI, or MCP Server (for AI agents).
-
-## Screenshot
-
-<p align="center">
-  <img src="docs/screenshot-curl-demo.jpg" width="280" alt="Frenbot">
-</p>
 
 ## Features
 
