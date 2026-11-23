@@ -1,5 +1,7 @@
 # Frenbot
 
+<img src="docs/screenshot-curl-demo.jpg" width="280" alt="Frenbot">
+
 Python-based tool for managing Smartfren accounts via Telegram Bot, Terminal CLI, or MCP Server (for AI agents).
 
 ## Features
@@ -34,10 +36,6 @@ python frenbot.py --cli
 Login pertama: menu 6 (Login), masukkan nomor Smartfren (contoh 0881xxxxxxxx),
 balas kode OTP dari SMS. Sesi tersimpan di mysf_session.json (gitignored) dan
 dipakai bersama oleh semua mode, jadi login cukup sekali.
-
-## Screenshot
-
-![Demo interaksi API](docs/screenshot-curl-demo.jpg)
 
 ## Modes
 
