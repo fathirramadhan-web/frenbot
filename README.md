@@ -35,6 +35,10 @@ Login pertama: menu 6 (Login), masukkan nomor Smartfren (contoh 0881xxxxxxxx),
 balas kode OTP dari SMS. Sesi tersimpan di mysf_session.json (gitignored) dan
 dipakai bersama oleh semua mode, jadi login cukup sekali.
 
+## Screenshot
+
+![Demo interaksi API](docs/screenshot-curl-demo.jpg)
+
 ## Modes
 
 - --bot : Telegram bot (requires .env config)
